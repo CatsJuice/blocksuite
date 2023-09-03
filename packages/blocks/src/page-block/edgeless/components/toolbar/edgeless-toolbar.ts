@@ -11,7 +11,7 @@ import { launchIntoFullscreen } from '@blocksuite/global/utils';
 import { WithDisposable } from '@blocksuite/lit';
 import { Bound, clamp, compare, FrameElement } from '@blocksuite/phasor';
 import { css, html, LitElement, nothing, type PropertyValues } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, query, queryAll, state } from 'lit/decorators.js';
 
 import { stopPropagation } from '../../../../__internal__/utils/event.js';
 import { uploadImageFromLocal } from '../../../../__internal__/utils/filesys.js';
@@ -31,6 +31,9 @@ import {
 } from '../../../../icons/index.js';
 import type { EdgelessPageBlockComponent } from '../../edgeless-page-block.js';
 import { getTooltipWithShortcut } from '../utils.js';
+
+// TODO - extract
+let _animated = false;
 
 @customElement('edgeless-toolbar')
 export class EdgelessToolbar extends WithDisposable(LitElement) {
@@ -57,6 +60,25 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
       border-radius: 40px;
       min-height: 52px;
     }
+
+    .play.edgeless-toolbar-container {
+      animation: container-spread-horizontal 1s ease-out;
+      animation-fill-mode: forwards;
+      will-change: width;
+
+      /* TODO: only apply overflow:hidden to bottom */
+      overflow: hidden;
+    }
+
+    @keyframes container-spread-horizontal {
+      0% {
+        max-width: 0;
+      }
+      100% {
+        max-width: 654px;
+      }
+    }
+
     .edgeless-toolbar-container[level='second'] {
       position: absolute;
       bottom: 8px;
@@ -150,12 +172,46 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
       border-radius: 8px;
       cursor: pointer;
     }
+
+    .play.toolbar-animate-in-item {
+      animation: toolbar-animate-in 0.5s cubic-bezier(0.27, 0.54, 0.31, 0.99);
+      transform: translateY(100px);
+      animation-fill-mode: forwards;
+      will-change: transform;
+    }
+    .toolbar-animate-in-after {
+      animation: toolbar-animate-in-after 0.2s ease;
+      opacity: 0;
+      animation-fill-mode: forwards;
+      animation-delay: 1s;
+    }
+    @keyframes toolbar-animate-in-after {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    @keyframes toolbar-animate-in {
+      from {
+        transform: translateY(100px);
+      }
+      to {
+        transform: translateY(0);
+      }
+    }
   `;
 
   edgeless: EdgelessPageBlockComponent;
 
   @state()
   private _frames: FrameElement[] = [];
+
+  @queryAll('.toolbar-animate-in-item')
+  private _animateInItems!: HTMLElement[];
+  @query('.edgeless-toolbar-container')
+  private _container!: HTMLElement;
 
   @state({
     hasChanged() {
@@ -280,6 +336,21 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
         this.requestUpdate();
       })
     );
+
+    requestAnimationFrame(() => {
+      if (_animated) return;
+      _animated = true;
+      this._applyAnimateIn();
+    });
+  }
+
+  private _applyAnimateIn() {
+    this._container.classList.add('play');
+    this._animateInItems?.forEach((el, index) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.animationDelay = `${index * 0.05}s`;
+      htmlEl.classList.add('play');
+    });
   }
 
   private _trySaveBrushStateLocalRecord = () => {
@@ -391,14 +462,16 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
     if (page.readonly) return nothing;
 
     return html`
-      <div class="full-divider"></div>
+      <div class="full-divider toolbar-animate-in-after"></div>
       <div class="brush-and-eraser">
         <edgeless-brush-tool-button
+          class="toolbar-animate-in-item"
           .edgelessTool=${this.edgelessTool}
           .edgeless=${this.edgeless}
           .setEdgelessTool=${this.setEdgelessTool}
         ></edgeless-brush-tool-button>
         <edgeless-toolbar-button
+          class="toolbar-animate-in-item"
           .tooltip=${getTooltipWithShortcut('Eraser', 'E')}
           .active=${type === 'eraser'}
           .activeMode=${'background'}
@@ -409,7 +482,7 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
       </div>
       <div class="edgeless-toolbar-right-part">
         <edgeless-toolbar-button
-          class="transform-button"
+          class="transform-button toolbar-animate-in-item"
           .tooltip=${getTooltipWithShortcut('Text', 'T')}
           .active=${type === 'text'}
           .activeMode=${'background'}
@@ -418,7 +491,7 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
           ${EdgelessTextIcon}
         </edgeless-toolbar-button>
         <edgeless-toolbar-button
-          class="transform-button"
+          class="transform-button toolbar-animate-in-item"
           .disabled=${this._imageLoading}
           .activeMode=${'background'}
           .tooltip=${'Image'}
@@ -427,11 +500,13 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
           ${EdgelessImageIcon}
         </edgeless-toolbar-button>
         <edgeless-shape-tool-button
+          class="toolbar-animate-in-item"
           .edgelessTool=${this.edgelessTool}
           .edgeless=${this.edgeless}
           .setEdgelessTool=${this.setEdgelessTool}
         ></edgeless-shape-tool-button>
         <edgeless-connector-tool-button
+          class="toolbar-animate-in-item"
           .edgelessTool=${this.edgelessTool}
           .edgeless=${this.edgeless}
           .setEdgelessTool=${this.setEdgelessTool}
@@ -446,6 +521,7 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
 
     return html`<div class="edgeless-toolbar-left-part">
         <edgeless-tool-icon-button
+          class="toolbar-animate-in-item"
           .tooltip=${getTooltipWithShortcut('Select', 'V')}
           .active=${type === 'default'}
           .activeMode=${'background'}
@@ -455,6 +531,7 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
           ${SelectIcon}
         </edgeless-tool-icon-button>
         <edgeless-tool-icon-button
+          class="toolbar-animate-in-item"
           .tooltip=${getTooltipWithShortcut('Hand', 'H')}
           .active=${type === 'pan'}
           .activeMode=${'background'}
@@ -467,12 +544,14 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
         ${page.readonly
           ? nothing
           : html` <edgeless-frame-tool-button
+              class="toolbar-animate-in-item"
               .edgelessTool=${this.edgelessTool}
               .setEdgelessTool=${this.setEdgelessTool}
               .edgeless=${this.edgeless}
             ></edgeless-frame-tool-button>`}
 
         <edgeless-tool-icon-button
+          class="toolbar-animate-in-item"
           .tooltip=${'Presentation'}
           .iconContainerPadding=${4}
           @click=${() => {
@@ -501,8 +580,10 @@ export class EdgelessToolbar extends WithDisposable(LitElement) {
       ${page.readonly
         ? nothing
         : html`
-            <div class="short-divider"></div>
+            <div class="short-divider toolbar-animate-in-after"></div>
             <edgeless-note-tool-button
+              style="animation-delay: 0.2s"
+              class="toolbar-animate-in-item"
               .edgelessTool=${this.edgelessTool}
               .edgeless=${this.edgeless}
               .setEdgelessTool=${this.setEdgelessTool}
